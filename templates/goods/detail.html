@@ -1,0 +1,182 @@
+{% extends 'base_detail_list.html' %}
+{% load static %}
+{% block main_content %}
+    <div class="breadcrumb">
+		<a href="#">全部分类</a>
+		<span>></span>
+		<a href="#">{{ sku.type.name }}</a>
+		<span>></span>
+		<a href="#">商品详情</a>
+	</div>
+
+	<div class="goods_detail_con clearfix">
+		<div class="goods_detail_pic fl"><img src="{{ sku.image.url }}"></div>
+
+		<div class="goods_detail_list fr">
+			<h3>{{ sku.name }}</h3>
+			<p>{{ sku.desc }}</p>
+			<div class="prize_bar">
+				<span class="show_pirze">¥<em>{{ sku.price }}</em></span>
+				<span class="show_unit">单  位：{{ sku.unite }}</span>
+			</div>
+			<div class="goods_num clearfix">
+				<div class="num_name fl">数 量：</div>
+				<div class="num_add fl">
+					<input type="text" class="num_show fl" value="1">
+					<a href="javascript:;" class="add fr">+</a>
+					<a href="javascript:;" class="minus fr">-</a>
+				</div>
+			</div>
+            <div>
+                <p>其他规格：</p>
+                <ul>
+                    {% for spu_sku in spu_skus %}
+                    <li><a href="{% url 'goods:detail' spu_sku.id %}">{{ spu_sku.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+			<div class="total">总价：<em>16.80元</em></div>
+			<div class="operate_btn">
+                {% csrf_token %}
+				<a href="javascript:;" class="buy_btn">立即购买</a>
+				<a href="javascript:;" sku_id="{{ sku.id }}" class="add_cart" id="add_cart">加入购物车</a>
+			</div>
+		</div>
+	</div>
+
+	<div class="main_wrap clearfix">
+		<div class="l_wrap fl clearfix">
+			<div class="new_goods">
+				<h3>新品推荐</h3>
+				<ul>
+                    {% for new_sku in new_skus %}
+                    <li>
+						<a href="{% url 'goods:detail' new_sku.id %}"><img src="{{ new_sku.image.url }}"></a>
+						<h4><a href="{% url 'goods:detail' new_sku.id %}">{{ new_sku.name }}</a></h4>
+						<div class="prize">￥{{ new_sku.price}}</div>
+					</li>
+                    {% endfor %}
+				</ul>
+			</div>
+		</div>
+
+		<div class="r_wrap fr clearfix">
+			<ul class="detail_tab clearfix">
+				<li class="active">商品介绍</li>
+				<li>评论</li>
+			</ul>
+
+			<div class="tab_content">
+				<dl>
+					<dt>商品详情：</dt>
+                    {# 用过滤器|safe取消转义，因为detail时HTML()类型的字段                   #}
+					<dd>{{ sku.goods.detail|safe }}</dd>
+				</dl>
+                <dl>
+                    {% for sku_comment in sku_comments %}
+                    <dt>用户：{{ sku_comment.order.user.name }}   评论时间{{ sku_comment.update_time }}</dt>
+                    <dd>{{ sku_comment.comment }}</dd>
+                    {% endfor %}
+				</dl>
+			</div>
+
+		</div>
+	</div>
+{% endblock main_content %}
+
+
+{% block bottom %}
+    <div class="add_jump"></div>
+{% endblock bottom %}
+
+{% block bottomfiles %}
+    <script type="text/javascript" src="{% static 'js/jquery-1.12.4.min.js' %}"></script>
+	<script type="text/javascript">
+        calculate_total_price();
+        function calculate_total_price() {
+            var price = $('.show_pirze').children('em').text();
+            var num = $('.num_show').val();
+
+            var price = parseFloat(price);
+            var num = parseInt(num);
+            var total_price = price*num;
+            // 设置总价    total_price.toFixed(2)将 total_price保留两位小数
+            $('.total').children('em').text(total_price.toFixed(2));
+        }
+
+        // 点击+、-键控制数量
+        $('.add').click(function () {
+            var num = $('.num_show').val();
+            var num = parseInt(num);
+            num += 1;
+            $('.num_show').val(num);
+            calculate_total_price();
+        });
+        $('.minus').click(function () {
+            var num = $('.num_show').val();
+            var num = parseInt(num);
+            num -= 1;
+            if (num<1){
+                num = 1
+            }
+            $('.num_show').val(num);
+            calculate_total_price();
+        });
+
+        // 手动修改数量 当失去焦点时需要进行数据校验
+        $('.num_show').blur(function () {
+            var num = $(this).val();
+            // 数据校验  isNaN(num) 表示num不是一个数字   如果用户输入全都是空格，那么根据num.trim().length==0可以判断出来
+            if (isNaN(num) || num.trim().length==0 || parseInt(num)<=0){
+                num = 1;
+            }
+            // 重新设置商品的数目
+            $(this).val(parseInt(num));
+            // 计算总价
+            calculate_total_price()
+        });
+
+
+		var $add_x = $('#add_cart').offset().top;
+		var $add_y = $('#add_cart').offset().left;
+
+		var $to_x = $('#show_count').offset().top;
+		var $to_y = $('#show_count').offset().left;
+
+
+		$('#add_cart').click(function(){
+		    // 当点击加入购物车时就需要获取该详情页中商品的id和添加的商品数量
+            var sku_id = $(this).attr('sku_id');
+            var num = $('.num_show').val();
+            var csrf = $('input[name="csrfmiddlewaretoken"]').val();
+            // 组织参数
+            var params = {
+                'sku_id': sku_id,
+                'num': num,
+                'csrfmiddlewaretoken': csrf
+            };
+            // 发起ajax post请求， 访问/cart/add, 传递参数：sku_id, num
+            $.post('/cart/add/', params, function (data) {
+                if (data.res == 5){
+                    // 成功添加至购物车
+                    // 执行添加购物车的动画
+                    $(".add_jump").css({'left':$add_y+80,'top':$add_x+10,'display':'block'});
+                    $(".add_jump").stop().animate({
+                        'left': $to_y+7,
+                        'top': $to_x+7},
+                        "fast", function() {
+                            $(".add_jump").fadeOut('fast',function(){
+                                // 重新设置用户购物车中商品的条目数
+                                $('#show_count').html(data.total_num);
+					        });
+			        });
+                }
+                else {
+                    // 添加失败
+                    alert(data.errmsg)
+                }
+            })
+		})
+	</script>
+{% endblock bottomfiles %}
+
